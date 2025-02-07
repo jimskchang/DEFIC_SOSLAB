@@ -20,6 +20,7 @@ def main():
     parser.add_argument('--scan', action="store", help='attacker\'s port scanning technique')
     parser.add_argument('--status', action="store", help='designate port status')
     parser.add_argument('--os', action="store", help='designate os we want to deceive')
+    parser.add_argument('--dest', action="store", help="Filename to store the record')
     args = parser.parse_args()
     settings.host = args.host
 
