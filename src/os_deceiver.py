@@ -225,25 +225,6 @@ class OsDeceiver:
                         pkt.l4_field['dest_port'] in settings.FREE_PORT:
                     continue
 
-                """Port Knocking"""
-                self.add_knocking_history(pkt)
-                if self.verify_knocking(pkt):
-                    src = ip_byte2str(pkt.l3_field['src_IP'])
-                    dst = ip_byte2str(pkt.l3_field['dest_IP'])
-                    self.white_list[pkt.l3_field['src_IP']] = datetime.now()
-                    logging.info(f"add {src} into white list.")
-                    logging.info(f"{self.white_list}")
-                if pkt.l3_field['src_IP'] in self.white_list:
-                    if self.white_list[pkt.l3_field['src_IP']] + settings.white_list_validation >= datetime.now():
-                        logging.info(f"legal user <{src}:{pkt.l4_field['src_port']}> ====> "
-                                     f"<{dst}:{pkt.l4_field['dest_port']}>")
-                        continue
-                    # update status when the authentication of this source IP is expired
-                    else:
-                        logging.info(f"<{src}> authentication is expired")
-                        self.white_list.pop(pkt.l3_field['src_IP'])
-                    continue
-
             """OS Deceive"""
             if (pkt.l3 == 'ip' and pkt.l3_field['dest_IP'] == socket.inet_aton(self.host)) or \
                     (pkt.l3 == 'arp' and pkt.l3_field['recv_ip'] == socket.inet_aton(self.host)):
@@ -255,30 +236,6 @@ class OsDeceiver:
                     print(f'send: {proc}, deceptive packet counter: {dec_count}')
                     self.conn.sock.send(rsp)
             continue
-
-    def add_knocking_history(self, packet: Packet):
-        try:
-            self.knocking_history[packet.l3_field['src_IP']].append(packet.l4_field['dest_port'])
-        except KeyError:
-            self.knocking_history[packet.l3_field['src_IP']] = [packet.l4_field['dest_port']]
-
-    def verify_knocking(self, packet: Packet):
-        idx = []
-        if packet.l3_field['src_IP'] in self.white_list:
-            self.knocking_history.pop(packet.l3_field['src_IP'])
-            return False
-
-        try:
-            for port in self.port_seq:
-                idx.append(self.knocking_history[packet.l3_field['src_IP']].index(port))
-        except ValueError:
-            return False
-
-        if all(idx[i + 1] - idx[i] == 1 for i in range(len(idx) - 1)):
-            return True
-        else:
-            return False
-
 
 def deceived_pkt_synthesis(proc: str, req: Packet, template: dict):
     key, _ = gen_key(proc, req.packet)
