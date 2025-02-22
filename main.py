@@ -12,7 +12,7 @@ from src.os_deceiver import OsDeceiver
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s]: %(message)s',
     datefmt='%y-%m-%d %H:%M',
-    level=logging.DEBUG  # DEBUG for full visibility
+    level=logging.DEBUG  # Set DEBUG mode to capture detailed logs
 )
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
@@ -22,7 +22,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
 
-    # Ensure directory exists
+    # Ensure directories exist
     os.makedirs(dest, exist_ok=True)
     os_dest = os.path.join(dest, "unknown")
     os.makedirs(os_dest, exist_ok=True)
@@ -33,7 +33,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     # Open raw socket
     sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
     sock.bind((nic, 0))
-    sock.settimeout(10)  # Set timeout for waiting packets
+    sock.settimeout(10)  # Prevents indefinite waiting
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
@@ -47,7 +47,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
         "udp": os.path.join(os_dest, "udp_record.txt")
     }
 
-    timeout = time.time() + 120  # At least 2 minutes scanning
+    timeout = time.time() + 120  # Set scan duration
     logging.info("Listening for packets...")
 
     while packet_count < max_packets and time.time() < timeout:
@@ -56,9 +56,9 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
             proto_type = None
 
-            # Log every received packet
+            # Debug log packet
             logging.debug(f"[DEBUG] Packet received from {addr}")
-            print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # First 100 bytes for debugging
+            print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # Print first 100 bytes
 
             if eth_protocol == 0x0806:  # ARP Packet
                 proto_type = "arp"
@@ -71,9 +71,9 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
 
                 logging.debug(f"[DEBUG] IP Packet: {src_ip} -> {dest_ip} | Protocol: {ip_proto}")
 
-                # Ensure packet is related to the target host
+                # Ensure the packet is related to the target host
                 if target_host not in [src_ip, dest_ip]:
-                    logging.debug("[DEBUG] Skipping packet not related to target.")
+                    logging.debug("[DEBUG] Skipping unrelated packet.")
                     continue
 
                 if ip_proto == 1:  # ICMP
@@ -89,12 +89,11 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
                 with open(file_paths[proto_type], "a") as f:
                     f.write(str(packet) + "\n")
                 logging.info(f"Captured {proto_type.upper()} Packet ({packet_count + 1})")
-
-            packet_count += 1
+                packet_count += 1  # Increment only when valid packet is captured
 
         except socket.timeout:
             logging.warning("No packets received within timeout. Continuing scan...")
-            continue  # Keeps trying instead of exiting
+            continue  # Keeps retrying instead of exiting
 
         except Exception as e:
             logging.error(f"Unexpected error while receiving packets: {e}")
