@@ -13,7 +13,7 @@ host = '10.1.100.233'
 
 
 # NOTE: Settings
-NIC = 'enp3s0'
+NIC = 'ens192'
 NICAddr = '/sys/class/net/%s/address' % NIC
 record_path = 'pkt_record.txt'
 mac = b'\x00\x50\x56\xb0\x10\xe9'
