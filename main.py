@@ -13,12 +13,12 @@ from src.os_deceiver import OsDeceiver
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s]: %(message)s',
     datefmt='%y-%m-%d %H:%M',
-    level=logging.DEBUG  # Changed to DEBUG for detailed logs
+    level=logging.DEBUG  # Use DEBUG for more details
 )
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
     """
-    Captures fingerprinting packets for the target host only and classifies them into ARP, ICMP, TCP, UDP.
+    Captures fingerprinting packets for the target host and classifies them into ARP, ICMP, TCP, UDP.
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
 
@@ -71,8 +71,13 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
 
                 logging.debug(f"[DEBUG] Packet Type: IP | Src: {src_ip} -> Dest: {dest_ip} | Protocol: {ip_proto}")
 
-                if ip_proto == 1:
+                if ip_proto == 1:  # ICMP
                     proto_type = "icmp"
+                    icmp_header = packet[34:42]  # Extract ICMP header
+                    icmp_type, icmp_code, icmp_checksum = struct.unpack("!BBH", icmp_header[:4])
+
+                    logging.debug(f"[DEBUG] ICMP Packet: Type={icmp_type}, Code={icmp_code}")
+
                 elif ip_proto == 6:
                     proto_type = "tcp"
                 elif ip_proto == 17:
