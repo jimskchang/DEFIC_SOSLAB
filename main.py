@@ -5,20 +5,17 @@ import time
 import socket
 import struct
 import src.settings as settings
-from src.port_deceiver import PortDeceiver
-from src.os_deceiver import OsDeceiver
 
 # Configure Logging
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s]: %(message)s',
     datefmt='%y-%m-%d %H:%M',
-    level=logging.DEBUG  # Set DEBUG mode to capture detailed logs
+    level=logging.DEBUG  # Enable DEBUG mode to log all packets
 )
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
     """
-    Captures fingerprinting packets for the target host only.
-    Stores ARP, ICMP, TCP, and UDP packets.
+    Captures fingerprinting packets (ARP, ICMP, TCP, UDP).
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
 
@@ -27,17 +24,23 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     os_dest = os.path.join(dest, "unknown")
     os.makedirs(os_dest, exist_ok=True)
 
-    # Enable promiscuous mode on interface
+    # Enable promiscuous mode on NIC
     os.system(f"sudo ip link set {nic} promisc on")
 
     # Open raw socket
-    sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
-    sock.bind((nic, 0))
-    sock.settimeout(10)  # Prevents indefinite waiting
+    try:
+        sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
+        sock.bind((nic, 0))
+    except Exception as e:
+        logging.error(f"Failed to bind to interface {nic}: {e}")
+        return
 
-    target_ip = socket.inet_aton(target_host)
+    sock.settimeout(10)  # Prevents indefinite waiting
     packet_count = 0
+    timeout = time.time() + 120  # Set scan duration
+
     logging.info(f"Storing fingerprint data in: {os_dest}")
+    logging.info("Listening for packets...")
 
     # File paths
     file_paths = {
@@ -47,18 +50,16 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
         "udp": os.path.join(os_dest, "udp_record.txt")
     }
 
-    timeout = time.time() + 120  # Set scan duration
-    logging.info("Listening for packets...")
-
     while packet_count < max_packets and time.time() < timeout:
         try:
             packet, addr = sock.recvfrom(65565)
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
-            proto_type = None
 
-            # Debug log packet
+            # Debugging raw packet data
             logging.debug(f"[DEBUG] Packet received from {addr}")
             print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # Print first 100 bytes
+
+            proto_type = None
 
             if eth_protocol == 0x0806:  # ARP Packet
                 proto_type = "arp"
@@ -92,7 +93,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
                 packet_count += 1  # Increment only when valid packet is captured
 
         except socket.timeout:
-            logging.warning("No packets received within timeout. Continuing scan...")
+            logging.warning("No packets received within timeout. Retrying...")
             continue  # Keeps retrying instead of exiting
 
         except Exception as e:
@@ -107,23 +108,19 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
 
 def main():
     parser = argparse.ArgumentParser(description="Camouflage Cloak - OS Deception & Fingerprinting System")
-    parser.add_argument("--host", required=True, help="Target host IP to deceive or fingerprint (e.g., 192.168.23.202)")
-    parser.add_argument("--nic", required=True, help="Network interface to capture packets (e.g., ens192)")
-    parser.add_argument("--scan", choices=["ts", "od", "rr", "pd"], required=True, help="Scanning technique")
-    parser.add_argument("--status", help="Designate port status (used with --scan pd)")
-    parser.add_argument("--os", help="Designate OS we want to deceive (required for --scan od)")
+    parser.add_argument("--host", required=True, help="Target host IP (e.g., 192.168.23.202)")
+    parser.add_argument("--nic", required=True, help="Network interface (e.g., ens192)")
+    parser.add_argument("--scan", choices=["ts"], required=True, help="Scanning technique")
     parser.add_argument("--dest", required=True, help="Directory to store OS fingerprints")
-    parser.add_argument("--te", type=int, help="Timeout duration in minutes for --od and --pd (e.g., --te 6 for 6 minutes)")
-    
+
     args = parser.parse_args()
 
     settings.HOST = args.host
     settings.NIC = args.nic
 
-    # Ensure destination directory exists
     os.makedirs(args.dest, exist_ok=True)
 
-    logging.info(f"Starting deception tool with mode: {args.scan}")
+    logging.info(f"Starting tool with mode: {args.scan}")
 
     if args.scan == 'ts':
         logging.info(f"Executing OS Fingerprinting for {args.host}...")
