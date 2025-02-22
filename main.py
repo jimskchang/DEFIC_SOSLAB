@@ -70,11 +70,17 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
             # **Detect IPv4 Traffic (Check IP Protocol Type)**
             elif eth_protocol == 0x0800:
                 ip_proto = packet[23]
-                if ip_proto == 1:
+
+                if ip_proto == 1:  # ICMP
                     proto_type = "icmp"
-                elif ip_proto == 6:
+                    icmp_header = packet[34:42]  # Extract ICMP header
+                    icmp_type, icmp_code, icmp_checksum = struct.unpack("!BBH", icmp_header[:4])
+
+                    logging.info(f"Captured ICMP Packet: Type={icmp_type}, Code={icmp_code}")
+
+                elif ip_proto == 6:  # TCP
                     proto_type = "tcp"
-                elif ip_proto == 17:
+                elif ip_proto == 17:  # UDP
                     proto_type = "udp"
 
             # **Write Captured Packets to Files**
