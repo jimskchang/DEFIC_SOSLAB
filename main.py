@@ -62,14 +62,19 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
 
             if eth_protocol == 0x0806:  # ARP Packet
                 proto_type = "arp"
+
             elif eth_protocol == 0x0800:  # IP Packet
-                ip_header = packet[14:34]
+                ip_header = packet[14:34]  # Extract IP header
                 ip_proto = struct.unpack("!B", ip_header[9:10])[0]  # Extract protocol field
 
                 src_ip = socket.inet_ntoa(ip_header[12:16])
                 dest_ip = socket.inet_ntoa(ip_header[16:20])
 
                 logging.debug(f"[DEBUG] Packet Type: IP | Src: {src_ip} -> Dest: {dest_ip} | Protocol: {ip_proto}")
+
+                if src_ip != target_host and dest_ip != target_host:
+                    logging.debug(f"[DEBUG] Packet ignored - Not from/to target {target_host}")
+                    continue
 
                 if ip_proto == 1:  # ICMP
                     proto_type = "icmp"
@@ -78,10 +83,19 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
 
                     logging.debug(f"[DEBUG] ICMP Packet: Type={icmp_type}, Code={icmp_code}")
 
-                elif ip_proto == 6:
+                elif ip_proto == 6:  # TCP
                     proto_type = "tcp"
-                elif ip_proto == 17:
+                    tcp_header = packet[34:54]  # Extract TCP header
+                    src_port, dest_port, seq, ack, offset_res_flags = struct.unpack("!HHLLH", tcp_header[:14])
+
+                    logging.debug(f"[DEBUG] TCP Packet: {src_ip}:{src_port} -> {dest_ip}:{dest_port}")
+
+                elif ip_proto == 17:  # UDP
                     proto_type = "udp"
+                    udp_header = packet[34:42]  # Extract UDP header
+                    src_port, dest_port, length, checksum = struct.unpack("!HHHH", udp_header)
+
+                    logging.debug(f"[DEBUG] UDP Packet: {src_ip}:{src_port} -> {dest_ip}:{dest_port}")
 
             if proto_type:
                 with open(file_paths[proto_type], "a") as f:
@@ -133,44 +147,6 @@ def main():
         logging.info(f"Executing OS Fingerprinting for {args.host}...")
         collect_fingerprint(target_host=args.host, dest=args.dest, nic=args.nic, max_packets=100)
         logging.info("Fingerprinting completed. Returning to command mode.")
-    
-    elif args.scan == 'od':
-        if not args.os:
-            logging.error("Missing required argument: --os is needed for --scan od")
-            return
-        if not args.te:
-            logging.error("Missing required argument: --te is needed for --scan od")
-            return
-
-        logging.info(f"Executing OS Deception on {args.host}, mimicking {args.os}...")
-        deceiver = OsDeceiver(args.host, args.os)
-        deceiver.os_deceive()
-        logging.info(f"OS Deception will run for {args.te} minutes...")
-        
-        timer = threading.Timer(args.te * 60, deceiver.stop)
-        timer.start()
-
-    elif args.scan == 'rr':
-        logging.info(f"Storing OS response fingerprint for {args.host}...")
-        deceiver = OsDeceiver(args.host, "unknown")
-        deceiver.store_rsp()
-        logging.info("OS response stored.")
-
-    elif args.scan == 'pd':
-        if not args.status:
-            logging.error("Missing required argument: --status is needed for --scan pd")
-            return
-        if not args.te:
-            logging.error("Missing required argument: --te is needed for --scan pd")
-            return
-
-        logging.info(f"Executing Port Deception on {args.host}, setting ports to {args.status}...")
-        deceiver = PortDeceiver(args.host)
-        deceiver.deceive_ps_hs(args.status)
-        logging.info(f"Port Deception will run for {args.te} minutes...")
-        
-        timer = threading.Timer(args.te * 60, deceiver.stop)
-        timer.start()
 
     else:
         logging.error("Invalid scan technique specified.")
