@@ -13,7 +13,7 @@ from src.os_deceiver import OsDeceiver
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s]: %(message)s',
     datefmt='%y-%m-%d %H:%M',
-    level=logging.INFO
+    level=logging.DEBUG  # Use DEBUG mode for live packet analysis
 )
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
@@ -26,16 +26,23 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     os.makedirs(dest, exist_ok=True)
     os.makedirs(os.path.join(dest, 'unknown'), exist_ok=True)
 
-    # Enable promiscuous mode for capturing packets
+    # Enable promiscuous mode for better packet capturing
     os.system(f"sudo ip link set {nic} promisc on")
-    sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
-    sock.bind((nic, 0))
-    sock.settimeout(5)
+    logging.info("Waiting 2 seconds for promiscuous mode to take effect...")
+    time.sleep(2)  # Short delay to ensure NIC is ready
+
+    # Open RAW socket for capturing
+    try:
+        sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
+        sock.bind((nic, 0))
+    except Exception as e:
+        logging.error(f"Error opening raw socket: {e}")
+        return
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
     os_dest = os.path.join(dest, "unknown")
-    logging.info(f"Storing data in: {os_dest}")
+    logging.info(f"Storing fingerprint data in: {os_dest}")
 
     # Define packet type files
     packet_files = {
@@ -45,17 +52,23 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
         "udp": os.path.join(os_dest, "udp_record.txt"),
     }
 
-    timeout = time.time() + 60  # Ensure at least 60 seconds of listening
+    # **Loop to capture packets for 3 minutes**
+    timeout = time.time() + 180  # 180 seconds (3 minutes)
     while packet_count < max_packets and time.time() < timeout:
         try:
             packet, addr = sock.recvfrom(65565)
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
             proto_type = None
 
-            # **Detect ICMP & ARP**
-            if eth_protocol == 0x0806:  # ARP
+            # **Live Debugging Output**
+            logging.debug(f"Captured raw packet ({len(packet)} bytes): {packet.hex()[:100]}")
+
+            # **Detect ARP**
+            if eth_protocol == 0x0806:
                 proto_type = "arp"
-            elif eth_protocol == 0x0800:  # IPv4
+
+            # **Detect IPv4 Traffic (Check IP Protocol Type)**
+            elif eth_protocol == 0x0800:
                 ip_proto = packet[23]
                 if ip_proto == 1:
                     proto_type = "icmp"
@@ -64,6 +77,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
                 elif ip_proto == 17:
                     proto_type = "udp"
 
+            # **Write Captured Packets to Files**
             if proto_type:
                 with open(packet_files[proto_type], "a") as f:
                     f.write(str(packet) + "\n")
@@ -71,15 +85,16 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
                 logging.info(f"Captured {proto_type.upper()} Packet ({packet_count})")
 
         except socket.timeout:
-            logging.warning("No packets received within timeout. Exiting scan.")
-            break
+            logging.warning("No packets received within timeout. Waiting for more traffic...")
+            time.sleep(2)  # Allow more time for packets
         except Exception as e:
             logging.error(f"Error while receiving packets: {e}")
             break
 
     if packet_count == 0:
         logging.warning("No packets captured! Check network interface settings and traffic.")
-    logging.info(f"OS Fingerprinting Completed. Captured {packet_count} packets.")
+    else:
+        logging.info(f"OS Fingerprinting Completed. Captured {packet_count} packets.")
 
 def main():
     parser = argparse.ArgumentParser(description="Camouflage Cloak - OS Deception & Fingerprinting System")
