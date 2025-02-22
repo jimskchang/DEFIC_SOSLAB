@@ -16,14 +16,14 @@ count = 0
 class OsDeceiver:
     white_list = []
 
-    def __init__(self, host, os):
+    def __init__(self, target_host, target_os, dest=None):
         self.host = host
         self.os = os
         self.conn = TcpConnect(host)
-        self.knocking_history = {}
         self.white_list = {}
         # self.port_seq = [random.randint(0, 65535) for _ in range(3)]
         self.port_seq = [4441, 5551, 6661]
+        self.dest = dest  # Store destination directory
 
     def os_record(self):
         arp_pkt_dict = {}
