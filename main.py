@@ -22,7 +22,8 @@ def execute_command(args):
         logging.info(f"Executing OS Fingerprinting for {args.host}...")
         deceiver = OsDeceiver(args.host, "unknown")  # Store in unknown by default
         deceiver.os_record()  # Ensure fingerprinting runs
-        logging.info("Fingerprinting completed. Returning to command mode.")
+        logging.info("Fingerprinting completed.")
+        return  # Exit the script normally after execution
 
     elif args.scan == 'od':
         if not args.os:
@@ -42,7 +43,7 @@ def execute_command(args):
         logging.info(f"Storing OS response fingerprint for {args.host}...")
         deceiver = OsDeceiver(args.host, "unknown")  
         deceiver.store_rsp()
-        logging.info("OS response stored. Returning to command mode.")
+        logging.info("OS response stored.")
 
     elif args.scan == 'pd':
         if not args.status:
@@ -62,7 +63,7 @@ def execute_command(args):
         logging.error("Invalid scan technique specified.")
 
 def main():
-    """ Main function with command mode loop """
+    """ Main function with normal execution and optional command mode """
     parser = argparse.ArgumentParser(description='Deceiver Command Mode')
     parser.add_argument('--host', required=True, help='Target host IP')
     parser.add_argument('--nic', required=True, help='NIC where we capture the packets')
@@ -70,7 +71,16 @@ def main():
     parser.add_argument('--status', help='Designate port status (used with --scan pd)')
     parser.add_argument('--os', help='OS to mimic (required for --scan od)')
     parser.add_argument('--te', type=int, help='Timeout duration in minutes for --od and --pd')
+    parser.add_argument('--cmd', action='store_true', help='Enter interactive command mode')
 
+    args = parser.parse_args()
+
+    # If --cmd is not provided, execute the command and exit
+    if not args.cmd:
+        execute_command(args)
+        return
+
+    # Otherwise, enter interactive command mode
     while True:
         try:
             command = input("\nEnter command: ").strip()
