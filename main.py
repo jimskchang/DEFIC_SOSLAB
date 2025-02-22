@@ -9,7 +9,7 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
     Captures fingerprinting packets for the target host only.
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
-    
+
     if not os.path.exists(dest):
         os.makedirs(dest)
     logging.info(f"Storing fingerprint data in: {dest}")
@@ -31,7 +31,7 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
 
     while packet_count < max_packets and time.time() < timeout:
         try:
-            logging.info("Waiting to receive a packet...")
+            logging.info("[DEBUG] Waiting to receive a packet...")
             packet, addr = sock.recvfrom(65565)
             logging.info(f"[DEBUG] Packet received from {addr}")
 
@@ -44,7 +44,7 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
             src_ip_str = socket.inet_ntoa(src_ip)
             dest_ip_str = socket.inet_ntoa(dest_ip)
 
-            logging.info(f"Captured Packet: {src_ip_str} → {dest_ip_str} (Protocol: {eth_protocol})")
+            logging.info(f"[DEBUG] Captured Packet: {src_ip_str} → {dest_ip_str} (Protocol: {eth_protocol})")
 
             if src_ip != target_ip and dest_ip != target_ip:
                 logging.info("[DEBUG] Ignored packet (Not from/to target)")
@@ -68,17 +68,17 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
                 with open(packet_file, "a") as f:
                     f.write(str(packet) + "\n")
                 packet_count += 1
-                logging.info(f"Saved {proto_type.upper()} Packet ({packet_count})")
+                logging.info(f"[DEBUG] Saved {proto_type.upper()} Packet ({packet_count})")
 
         except socket.timeout:
-            logging.warning("No packets received in 10 seconds. Retrying...")
+            logging.warning("[DEBUG] No packets received in 10 seconds. Retrying...")
             continue
 
         except Exception as e:
-            logging.error(f"Error while capturing packets: {e}")
+            logging.error(f"[ERROR] Unexpected error while capturing packets: {e}")
             break
 
     if packet_count == 0:
-        logging.warning("No packets captured! Check network settings and traffic.")
+        logging.warning("[WARNING] No packets captured! Check network settings and traffic.")
 
     logging.info(f"OS Fingerprinting Completed. Captured {packet_count} packets.")
