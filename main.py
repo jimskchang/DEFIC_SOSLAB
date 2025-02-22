@@ -13,7 +13,7 @@ from src.os_deceiver import OsDeceiver
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s]: %(message)s',
     datefmt='%y-%m-%d %H:%M',
-    level=logging.INFO
+    level=logging.DEBUG  # Changed to DEBUG for detailed logs
 )
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
@@ -54,7 +54,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     while packet_count < max_packets and time.time() < timeout:
         try:
             packet, addr = sock.recvfrom(65565)
-            logging.info(f"[DEBUG] Packet received from {addr}")
+            logging.debug(f"[DEBUG] Packet received from {addr}")
             print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # Print first 100 bytes
 
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
@@ -63,7 +63,14 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
             if eth_protocol == 0x0806:  # ARP Packet
                 proto_type = "arp"
             elif eth_protocol == 0x0800:  # IP Packet
-                ip_proto = packet[23]
+                ip_header = packet[14:34]
+                ip_proto = struct.unpack("!B", ip_header[9:10])[0]  # Extract protocol field
+
+                src_ip = socket.inet_ntoa(ip_header[12:16])
+                dest_ip = socket.inet_ntoa(ip_header[16:20])
+
+                logging.debug(f"[DEBUG] Packet Type: IP | Src: {src_ip} -> Dest: {dest_ip} | Protocol: {ip_proto}")
+
                 if ip_proto == 1:
                     proto_type = "icmp"
                 elif ip_proto == 6:
