@@ -12,13 +12,13 @@ from src.os_deceiver import OsDeceiver
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s]: %(message)s',
     datefmt='%y-%m-%d %H:%M',
-    level=logging.DEBUG
+    level=logging.DEBUG  # Use DEBUG level for full visibility
 )
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
     """
     Captures fingerprinting packets for the target host only.
-    Classifies ARP, ICMP, TCP, UDP packets and stores them.
+    Stores ARP, ICMP, TCP, and UDP packets.
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
 
@@ -30,7 +30,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     # Enable promiscuous mode on interface
     os.system(f"sudo ip link set {nic} promisc on")
 
-    # Open socket to capture packets
+    # Open raw socket
     sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
     sock.bind((nic, 0))
     sock.settimeout(10)  # Wait for packets
@@ -47,7 +47,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
         "udp": os.path.join(os_dest, "udp_record.txt")
     }
 
-    timeout = time.time() + 120  # Ensure at least 2 minutes scanning
+    timeout = time.time() + 120  # At least 2 minutes scanning
     logging.info("Listening for packets...")
 
     while packet_count < max_packets and time.time() < timeout:
@@ -56,15 +56,16 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
             proto_type = None
 
+            # Log every received packet
             logging.debug(f"[DEBUG] Packet received from {addr}")
-            print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # Print first 100 bytes
+            print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # First 100 bytes for debugging
 
             if eth_protocol == 0x0806:  # ARP Packet
                 proto_type = "arp"
 
             elif eth_protocol == 0x0800:  # IPv4 Packet
                 ip_header = packet[14:34]
-                ip_proto = struct.unpack("!B", ip_header[9:10])[0]  # Protocol field
+                ip_proto = struct.unpack("!B", ip_header[9:10])[0]  # Extract protocol field
                 src_ip = socket.inet_ntoa(ip_header[12:16])
                 dest_ip = socket.inet_ntoa(ip_header[16:20])
 
