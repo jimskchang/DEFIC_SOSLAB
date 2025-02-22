@@ -20,7 +20,6 @@ def main():
     parser.add_argument('--scan', choices=['ts', 'od', 'rr', 'pd'], required=True, help='Attacker\'s port scanning technique')
     parser.add_argument('--status', help='Designate port status (used with --scan pd)')
     parser.add_argument('--os', help='Designate OS we want to deceive (required for --scan od)')
-    parser.add_argument('--dest', required=True, help='Directory to store OS fingerprints')
     parser.add_argument('--te', type=int, help='Timeout duration in minutes for --od and --pd (e.g., --te 6 for 6 minutes)')
     
     args = parser.parse_args()
