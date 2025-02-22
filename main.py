@@ -3,22 +3,33 @@ import logging
 import socket
 import struct
 import time
+import argparse
+import src.settings as settings
+from src.port_deceiver import PortDeceiver
+from src.os_deceiver import OsDeceiver
+
+# Enable full logging
+logging.basicConfig(
+    format="%(asctime)s [%(levelname)s]: %(message)s",
+    datefmt="%y-%m-%d %H:%M",
+    level=logging.DEBUG  # Change to DEBUG mode
+)
 
 def collect_fingerprint(target_host, nic, dest, max_packets=100):
     """
     Captures fingerprinting packets for the target host only.
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
-
+    
     if not os.path.exists(dest):
         os.makedirs(dest)
     logging.info(f"Storing fingerprint data in: {dest}")
 
     try:
-        logging.info(f"Creating RAW socket on interface {nic}...")
+        logging.debug(f"Creating RAW socket on interface {nic}...")
         sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
         sock.bind((nic, 0))
-        sock.settimeout(10)  # Set timeout to prevent indefinite blocking
+        sock.settimeout(10)  # Set timeout to prevent indefinite waiting
         logging.info(f"Listening for packets on {nic}...")
     except Exception as e:
         logging.error(f"Failed to create or bind raw socket: {e}")
@@ -26,14 +37,13 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
-
     timeout = time.time() + 120  # Set a total scan time of 2 minutes
 
     while packet_count < max_packets and time.time() < timeout:
         try:
-            logging.info("[DEBUG] Waiting to receive a packet...")
+            logging.debug("[DEBUG] Waiting to receive a packet...")
             packet, addr = sock.recvfrom(65565)
-            logging.info(f"[DEBUG] Packet received from {addr}")
+            logging.debug(f"[DEBUG] Packet received from {addr}")
 
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
             ip_header = packet[14:34]
@@ -82,3 +92,18 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
         logging.warning("[WARNING] No packets captured! Check network settings and traffic.")
 
     logging.info(f"OS Fingerprinting Completed. Captured {packet_count} packets.")
+
+def main():
+    parser = argparse.ArgumentParser(description="Camouflage Cloak - OS Deception & Fingerprinting System")
+    parser.add_argument("--host", required=True, help="Target host IP to deceive or fingerprint (e.g., 192.168.23.202)")
+    parser.add_argument("--nic", required=True, help="Network interface to capture packets (e.g., ens192)")
+    parser.add_argument("--scan", choices=["ts"], required=True, help="Scanning technique [ts: fingerprinting]")
+    parser.add_argument("--dest", type=str, required=True, help="Directory to store captured fingerprints for ts mode")
+    args = parser.parse_args()
+
+    logging.info(f"Executing OS Fingerprinting on {args.host}...")
+    collect_fingerprint(target_host=args.host, nic=args.nic, dest=args.dest, max_packets=100)
+    logging.info("Fingerprinting completed. No OS deception performed.")
+
+if __name__ == "__main__":
+    main()
