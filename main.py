@@ -18,27 +18,36 @@ logging.basicConfig(
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
     """
-    Captures fingerprinting packets for the target host only.
+    Captures fingerprinting packets for the target host only and classifies them into ARP, ICMP, TCP, UDP.
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
 
     # Ensure directory exists
     if not os.path.exists(dest):
         os.makedirs(dest)
-    if not os.path.exists(os.path.join(dest, 'unknown')):
-        os.makedirs(os.path.join(dest, 'unknown'))
+    os_dest = os.path.join(dest, "unknown")
+    if not os.path.exists(os_dest):
+        os.makedirs(os_dest)
 
     # Enable promiscuous mode
     os.system(f"sudo ip link set {nic} promisc on")
-    
+
+    # Open socket to capture packets
     sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
     sock.bind((nic, 0))
     sock.settimeout(5)  # Timeout to prevent indefinite hanging
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
-    os_dest = os.path.join(dest, "unknown")
     logging.info(f"Storing fingerprint data in: {os_dest}")
+
+    # Open files to store categorized packets
+    file_paths = {
+        "arp": os.path.join(os_dest, "arp_record.txt"),
+        "icmp": os.path.join(os_dest, "icmp_record.txt"),
+        "tcp": os.path.join(os_dest, "tcp_record.txt"),
+        "udp": os.path.join(os_dest, "udp_record.txt")
+    }
 
     timeout = time.time() + 60  # Ensures scanning lasts at least 60 seconds
 
@@ -49,14 +58,25 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
             print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # Print first 100 bytes
 
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
-            logging.info(f"[DEBUG] Eth Protocol: {eth_protocol:#06x}")
+            proto_type = None
 
-            # Store the captured packet
-            with open(os.path.join(os_dest, "captured_packets.txt"), "a") as f:
-                f.write(str(packet) + "\n")
+            if eth_protocol == 0x0806:  # ARP Packet
+                proto_type = "arp"
+            elif eth_protocol == 0x0800:  # IP Packet
+                ip_proto = packet[23]
+                if ip_proto == 1:
+                    proto_type = "icmp"
+                elif ip_proto == 6:
+                    proto_type = "tcp"
+                elif ip_proto == 17:
+                    proto_type = "udp"
+
+            if proto_type:
+                with open(file_paths[proto_type], "a") as f:
+                    f.write(str(packet) + "\n")
+                logging.info(f"Captured {proto_type.upper()} Packet ({packet_count + 1})")
 
             packet_count += 1
-            logging.info(f"Captured {packet_count} packets so far...")
 
         except BlockingIOError:
             logging.warning("[WARNING] No packets received yet, retrying...")
