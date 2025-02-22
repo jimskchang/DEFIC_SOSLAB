@@ -31,6 +31,17 @@ def main():
         port_scan_tech = args.scan
 
         if port_scan_tech == 'ts':
+            deceiver = OsDeceiver(args.host, args.os, dest=args.dest)  # Now valid
+            deceiver.os_record()
+        elif port_scan_tech == 'od':
+          if args.os is None:
+            logging.debug('No os is designated')
+    else:
+        deceiver = OsDeceiver(args.host, args.os, dest=args.dest)
+        deceiver.os_deceive()
+
+                
+        if port_scan_tech == 'ts':
             deceiver = OsDeceiver(args.host, args.os, dest=args.dest)
             deceiver.os_record()
         elif port_scan_tech == 'od':
