@@ -10,13 +10,10 @@ import src.settings as settings
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s]: %(message)s',
     datefmt='%y-%m-%d %H:%M',
-    level=logging.DEBUG  # Enable DEBUG mode to log all packets
+    level=logging.DEBUG
 )
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
-    """
-    Captures fingerprinting packets (ARP, ICMP, TCP, UDP).
-    """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
 
     # Ensure directories exist
@@ -30,14 +27,14 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     # Open raw socket
     try:
         sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
-        sock.bind((nic, 0))
+        sock.bind((nic, 0))  # Ensure binding to correct NIC
     except Exception as e:
         logging.error(f"Failed to bind to interface {nic}: {e}")
         return
 
-    sock.settimeout(10)  # Prevents indefinite waiting
+    sock.settimeout(10)
     packet_count = 0
-    timeout = time.time() + 120  # Set scan duration
+    timeout = time.time() + 120
 
     logging.info(f"Storing fingerprint data in: {os_dest}")
     logging.info("Listening for packets...")
@@ -55,52 +52,45 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
             packet, addr = sock.recvfrom(65565)
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
 
-            # Debugging raw packet data
-            logging.debug(f"[DEBUG] Packet received from {addr}")
-            print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # Print first 100 bytes
+            logging.debug(f"[DEBUG] Packet from {addr} - Protocol: {eth_protocol}")
+            print(f"[DEBUG] Raw Packet: {packet.hex()[:100]}")  
 
             proto_type = None
 
-            if eth_protocol == 0x0806:  # ARP Packet
+            if eth_protocol == 0x0806:
+                print("[DEBUG] ARP Packet detected")
                 proto_type = "arp"
 
-            elif eth_protocol == 0x0800:  # IPv4 Packet
-                ip_header = packet[14:34]
-                ip_proto = struct.unpack("!B", ip_header[9:10])[0]  # Extract protocol field
-                src_ip = socket.inet_ntoa(ip_header[12:16])
-                dest_ip = socket.inet_ntoa(ip_header[16:20])
+            elif eth_protocol == 0x0800:
+                ip_proto = struct.unpack("!B", packet[23:24])[0]
+                print(f"[DEBUG] IP Packet detected - Protocol: {ip_proto}")
 
-                logging.debug(f"[DEBUG] IP Packet: {src_ip} -> {dest_ip} | Protocol: {ip_proto}")
-
-                # Ensure the packet is related to the target host
-                if target_host not in [src_ip, dest_ip]:
-                    logging.debug("[DEBUG] Skipping unrelated packet.")
-                    continue
-
-                if ip_proto == 1:  # ICMP
+                if ip_proto == 1:
+                    print("[DEBUG] ICMP Packet detected")
                     proto_type = "icmp"
 
-                elif ip_proto == 6:  # TCP
+                elif ip_proto == 6:
+                    print("[DEBUG] TCP Packet detected")
                     proto_type = "tcp"
 
-                elif ip_proto == 17:  # UDP
+                elif ip_proto == 17:
+                    print("[DEBUG] UDP Packet detected")
                     proto_type = "udp"
 
             if proto_type:
                 with open(file_paths[proto_type], "a") as f:
                     f.write(str(packet) + "\n")
                 logging.info(f"Captured {proto_type.upper()} Packet ({packet_count + 1})")
-                packet_count += 1  # Increment only when valid packet is captured
+                packet_count += 1  
 
         except socket.timeout:
             logging.warning("No packets received within timeout. Retrying...")
-            continue  # Keeps retrying instead of exiting
+            continue  
 
         except Exception as e:
             logging.error(f"Unexpected error while receiving packets: {e}")
             break
 
-    # Final check
     if packet_count == 0:
         logging.error("No packets captured! Check interface and network traffic.")
     else:
@@ -126,10 +116,6 @@ def main():
         logging.info(f"Executing OS Fingerprinting for {args.host}...")
         collect_fingerprint(target_host=args.host, dest=args.dest, nic=args.nic, max_packets=100)
         logging.info("Fingerprinting completed. Returning to command mode.")
-
-    else:
-        logging.error("Invalid scan technique specified.")
-        return
 
 if __name__ == '__main__':
     main()
