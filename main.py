@@ -1,109 +1,148 @@
-import os
 import logging
+import argparse
+import os
+import time
+import threading
 import socket
 import struct
-import time
-import argparse
 import src.settings as settings
 from src.port_deceiver import PortDeceiver
 from src.os_deceiver import OsDeceiver
 
-# Enable full logging
+# Configure Logging
 logging.basicConfig(
-    format="%(asctime)s [%(levelname)s]: %(message)s",
-    datefmt="%y-%m-%d %H:%M",
-    level=logging.DEBUG  # Change to DEBUG mode
+    format='%(asctime)s [%(levelname)s]: %(message)s',
+    datefmt='%y-%m-%d %H:%M',
+    level=logging.INFO
 )
 
-def collect_fingerprint(target_host, nic, dest, max_packets=100):
+def collect_fingerprint(target_host, dest, nic, max_packets=100):
     """
     Captures fingerprinting packets for the target host only.
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
-    
+
+    # Ensure directory exists
     if not os.path.exists(dest):
         os.makedirs(dest)
-    logging.info(f"Storing fingerprint data in: {dest}")
+    if not os.path.exists(os.path.join(dest, 'unknown')):
+        os.makedirs(os.path.join(dest, 'unknown'))
 
-    try:
-        logging.debug(f"Creating RAW socket on interface {nic}...")
-        sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
-        sock.bind((nic, 0))
-        sock.settimeout(10)  # Set timeout to prevent indefinite waiting
-        logging.info(f"Listening for packets on {nic}...")
-    except Exception as e:
-        logging.error(f"Failed to create or bind raw socket: {e}")
-        return
+    # Enable promiscuous mode
+    os.system(f"sudo ip link set {nic} promisc on")
+    
+    sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
+    sock.bind((nic, 0))
+    sock.settimeout(5)  # Timeout to prevent indefinite hanging
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
-    timeout = time.time() + 120  # Set a total scan time of 2 minutes
+    os_dest = os.path.join(dest, "unknown")
+    logging.info(f"Storing fingerprint data in: {os_dest}")
+
+    timeout = time.time() + 60  # Ensures scanning lasts at least 60 seconds
 
     while packet_count < max_packets and time.time() < timeout:
         try:
-            logging.debug("[DEBUG] Waiting to receive a packet...")
             packet, addr = sock.recvfrom(65565)
-            logging.debug(f"[DEBUG] Packet received from {addr}")
+            logging.info(f"[DEBUG] Packet received from {addr}")
+            print(f"[DEBUG] Raw Packet Data: {packet.hex()[:100]}")  # Print first 100 bytes
 
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
-            ip_header = packet[14:34]
-            ip_unpack = struct.unpack("!BBHHHBBH4s4s", ip_header)
-            src_ip = ip_unpack[8]
-            dest_ip = ip_unpack[9]
+            logging.info(f"[DEBUG] Eth Protocol: {eth_protocol:#06x}")
 
-            src_ip_str = socket.inet_ntoa(src_ip)
-            dest_ip_str = socket.inet_ntoa(dest_ip)
+            # Store the captured packet
+            with open(os.path.join(os_dest, "captured_packets.txt"), "a") as f:
+                f.write(str(packet) + "\n")
 
-            logging.info(f"[DEBUG] Captured Packet: {src_ip_str} → {dest_ip_str} (Protocol: {eth_protocol})")
+            packet_count += 1
+            logging.info(f"Captured {packet_count} packets so far...")
 
-            if src_ip != target_ip and dest_ip != target_ip:
-                logging.info("[DEBUG] Ignored packet (Not from/to target)")
-                continue  # Ignore packets not meant for the target host
-
-            # Save packet based on protocol
-            proto_type = None
-            if eth_protocol == 0x0806:
-                proto_type = "arp"
-            elif eth_protocol == 0x0800:
-                ip_proto = packet[23]
-                if ip_proto == 1:
-                    proto_type = "icmp"
-                elif ip_proto == 6:
-                    proto_type = "tcp"
-                elif ip_proto == 17:
-                    proto_type = "udp"
-
-            if proto_type:
-                packet_file = os.path.join(dest, f"{proto_type}_record.txt")
-                with open(packet_file, "a") as f:
-                    f.write(str(packet) + "\n")
-                packet_count += 1
-                logging.info(f"[DEBUG] Saved {proto_type.upper()} Packet ({packet_count})")
+        except BlockingIOError:
+            logging.warning("[WARNING] No packets received yet, retrying...")
+            time.sleep(0.5)
 
         except socket.timeout:
-            logging.warning("[DEBUG] No packets received in 10 seconds. Retrying...")
-            continue
+            logging.warning("No packets received within timeout. Continuing scan...")
+            continue  # Instead of exiting, it retries
 
         except Exception as e:
-            logging.error(f"[ERROR] Unexpected error while capturing packets: {e}")
+            logging.error(f"Unexpected error while receiving packets: {e}")
             break
 
+    # Final check
     if packet_count == 0:
-        logging.warning("[WARNING] No packets captured! Check network settings and traffic.")
-
-    logging.info(f"OS Fingerprinting Completed. Captured {packet_count} packets.")
+        logging.error("No packets captured! Check interface and network traffic.")
+    else:
+        logging.info(f"OS Fingerprinting Completed. Captured {packet_count} packets.")
 
 def main():
     parser = argparse.ArgumentParser(description="Camouflage Cloak - OS Deception & Fingerprinting System")
     parser.add_argument("--host", required=True, help="Target host IP to deceive or fingerprint (e.g., 192.168.23.202)")
     parser.add_argument("--nic", required=True, help="Network interface to capture packets (e.g., ens192)")
-    parser.add_argument("--scan", choices=["ts"], required=True, help="Scanning technique [ts: fingerprinting]")
-    parser.add_argument("--dest", type=str, required=True, help="Directory to store captured fingerprints for ts mode")
+    parser.add_argument("--scan", choices=["ts", "od", "rr", "pd"], required=True, help="Scanning technique")
+    parser.add_argument("--status", help="Designate port status (used with --scan pd)")
+    parser.add_argument("--os", help="Designate OS we want to deceive (required for --scan od)")
+    parser.add_argument("--dest", required=True, help="Directory to store OS fingerprints")
+    parser.add_argument("--te", type=int, help="Timeout duration in minutes for --od and --pd (e.g., --te 6 for 6 minutes)")
+    
     args = parser.parse_args()
 
-    logging.info(f"Executing OS Fingerprinting on {args.host}...")
-    collect_fingerprint(target_host=args.host, nic=args.nic, dest=args.dest, max_packets=100)
-    logging.info("Fingerprinting completed. No OS deception performed.")
+    settings.HOST = args.host
+    settings.NIC = args.nic
 
-if __name__ == "__main__":
+    # Ensure destination directory exists
+    if not os.path.exists(args.dest):
+        os.makedirs(args.dest)
+
+    logging.info(f"Starting deception tool with mode: {args.scan}")
+
+    if args.scan == 'ts':
+        logging.info(f"Executing OS Fingerprinting for {args.host}...")
+        collect_fingerprint(target_host=args.host, dest=args.dest, nic=args.nic, max_packets=100)
+        logging.info("Fingerprinting completed. Returning to command mode.")
+    
+    elif args.scan == 'od':
+        if not args.os:
+            logging.error("Missing required argument: --os is needed for --scan od")
+            return
+        if not args.te:
+            logging.error("Missing required argument: --te is needed for --scan od")
+            return
+
+        logging.info(f"Executing OS Deception on {args.host}, mimicking {args.os}...")
+        deceiver = OsDeceiver(args.host, args.os)
+        deceiver.os_deceive()
+        logging.info(f"OS Deception will run for {args.te} minutes...")
+        
+        timer = threading.Timer(args.te * 60, deceiver.stop)
+        timer.start()
+
+    elif args.scan == 'rr':
+        logging.info(f"Storing OS response fingerprint for {args.host}...")
+        deceiver = OsDeceiver(args.host, "unknown")
+        deceiver.store_rsp()
+        logging.info("OS response stored.")
+
+    elif args.scan == 'pd':
+        if not args.status:
+            logging.error("Missing required argument: --status is needed for --scan pd")
+            return
+        if not args.te:
+            logging.error("Missing required argument: --te is needed for --scan pd")
+            return
+
+        logging.info(f"Executing Port Deception on {args.host}, setting ports to {args.status}...")
+        deceiver = PortDeceiver(args.host)
+        deceiver.deceive_ps_hs(args.status)
+        logging.info(f"Port Deception will run for {args.te} minutes...")
+        
+        timer = threading.Timer(args.te * 60, deceiver.stop)
+        timer.start()
+
+    else:
+        logging.error("Invalid scan technique specified.")
+        return
+
+if __name__ == '__main__':
     main()
