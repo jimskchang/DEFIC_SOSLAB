@@ -12,7 +12,7 @@ from src.os_deceiver import OsDeceiver
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s]: %(message)s',
     datefmt='%y-%m-%d %H:%M',
-    level=logging.DEBUG  # Use DEBUG level for full visibility
+    level=logging.DEBUG  # DEBUG for full visibility
 )
 
 def collect_fingerprint(target_host, dest, nic, max_packets=100):
@@ -33,7 +33,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     # Open raw socket
     sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
     sock.bind((nic, 0))
-    sock.settimeout(10)  # Wait for packets
+    sock.settimeout(10)  # Set timeout for waiting packets
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
