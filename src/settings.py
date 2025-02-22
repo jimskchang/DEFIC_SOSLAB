@@ -16,10 +16,10 @@ host = '192.168.10.10'
 NIC = 'ens192'
 NICAddr = '/sys/class/net/%s/address' % NIC
 record_path = 'pkt_record.txt'
-mac = b'\x00\x50\x56\xb0\x10\xe9'
+mac = b'\x00\x50\x56\x8e\x35\x6f'
 
 # NOTE: Port Knocking
-FREE_PORT = []
-WHITE_LIST = []
-PORT_SEQ = [2521, 4321, 1314]
-white_list_validation = datetime.timedelta(seconds=30)
+# FREE_PORT = []
+# WHITE_LIST = []
+# PORT_SEQ = [2521, 4321, 1314]
+# white_list_validation = datetime.timedelta(seconds=30)
