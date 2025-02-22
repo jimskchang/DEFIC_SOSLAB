@@ -1,4 +1,4 @@
-from _datetime import datetime, timedelta
+from datetime import datetime, timedelta
 import logging
 import random
 import socket
@@ -9,19 +9,16 @@ import src.settings as settings
 from src.Packet import Packet
 from src.tcp import TcpConnect
 
-
 count = 0
-
 
 class OsDeceiver:
     white_list = []
 
     def __init__(self, target_host, target_os, dest=None):
-        self.host = host
-        self.os = os
-        self.conn = TcpConnect(host)
+        self.host = target_host  # Corrected from 'host' to 'target_host'
+        self.os = target_os  # Corrected from 'os' to 'target_os'
+        self.conn = TcpConnect(target_host)
         self.white_list = {}
-        # self.port_seq = [random.randint(0, 65535) for _ in range(3)]
         self.port_seq = [4441, 5551, 6661]
         self.dest = dest  # Store destination directory
 
