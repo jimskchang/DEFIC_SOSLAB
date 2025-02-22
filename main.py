@@ -20,6 +20,7 @@ def main():
     parser.add_argument('--scan', action="store", help='attacker\'s port scanning technique')
     parser.add_argument('--status', action="store", help='designate port status')
     parser.add_argument('--os', action="store", help='designate os we want to deceive')
+    parser.add_argument('--dest', action="store", required=True, help='directory to store OS fingerprints')
     args = parser.parse_args()
     settings.host = args.host
 
@@ -30,16 +31,16 @@ def main():
         port_scan_tech = args.scan
 
         if port_scan_tech == 'ts':
-            deceiver = OsDeceiver(args.host, args.os)
+            deceiver = OsDeceiver(args.host, args.os, dest=args.dest)
             deceiver.os_record()
         elif port_scan_tech == 'od':
             if args.os is None:
                 logging.debug('No os is designated')
             else:
-                deceiver = OsDeceiver(args.host, args.os)
+                deceiver = OsDeceiver(args.host, args.os, dest=args.dest)
                 deceiver.os_deceive()
         elif port_scan_tech == 'rr':
-            deceiver = OsDeceiver(args.host, args.os)
+            deceiver = OsDeceiver(args.host, args.os, dest=args.dest)
             deceiver.store_rsp()
 
         if args.status:
