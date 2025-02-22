@@ -21,8 +21,8 @@ def execute_command(args):
     if args.scan == 'ts':
         logging.info(f"Executing OS Fingerprinting for {args.host}...")
         deceiver = OsDeceiver(args.host, "unknown")  # Store in unknown by default
-        deceiver.os_record()
-        logging.info("Fingerprinting completed.")
+        deceiver.os_record()  # Ensure fingerprinting runs
+        logging.info("Fingerprinting completed. Returning to command mode.")
 
     elif args.scan == 'od':
         if not args.os:
@@ -42,7 +42,7 @@ def execute_command(args):
         logging.info(f"Storing OS response fingerprint for {args.host}...")
         deceiver = OsDeceiver(args.host, "unknown")  
         deceiver.store_rsp()
-        logging.info("OS response stored.")
+        logging.info("OS response stored. Returning to command mode.")
 
     elif args.scan == 'pd':
         if not args.status:
@@ -63,18 +63,25 @@ def execute_command(args):
 
 def main():
     """ Main function with command mode loop """
-    while True:
-        parser = argparse.ArgumentParser(description='Deceiver Command Mode')
-        parser.add_argument('--host', required=True, help='Target host IP')
-        parser.add_argument('--nic', required=True, help='NIC where we capture the packets')
-        parser.add_argument('--scan', choices=['ts', 'od', 'rr', 'pd'], required=True, help='Scanning technique')
-        parser.add_argument('--status', help='Designate port status (used with --scan pd)')
-        parser.add_argument('--os', help='OS to mimic (required for --scan od)')
-        parser.add_argument('--te', type=int, help='Timeout duration in minutes for --od and --pd')
-        args = parser.parse_args(input("Enter command: ").split())
+    parser = argparse.ArgumentParser(description='Deceiver Command Mode')
+    parser.add_argument('--host', required=True, help='Target host IP')
+    parser.add_argument('--nic', required=True, help='NIC where we capture the packets')
+    parser.add_argument('--scan', choices=['ts', 'od', 'rr', 'pd'], required=True, help='Scanning technique')
+    parser.add_argument('--status', help='Designate port status (used with --scan pd)')
+    parser.add_argument('--os', help='OS to mimic (required for --scan od)')
+    parser.add_argument('--te', type=int, help='Timeout duration in minutes for --od and --pd')
 
-        execute_command(args)
-        logging.info("Returning to command mode...\n")
+    while True:
+        try:
+            command = input("\nEnter command: ").strip()
+            if command.lower() in ['exit', 'quit']:
+                logging.info("Exiting program.")
+                break  # Exit loop if user types "exit" or "quit"
+
+            args = parser.parse_args(command.split())  # Correctly process user input
+            execute_command(args)
+        except Exception as e:
+            logging.error(f"Error processing command: {e}")
 
 if __name__ == '__main__':
     main()
