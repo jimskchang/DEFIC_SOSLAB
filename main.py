@@ -19,45 +19,42 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
     """ Captures fingerprinting packets for the target host only. """
     
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
-    
-    # Ensure the os_record/unknown folder exists
+
     os.makedirs(dest, exist_ok=True)
     logging.info(f"Storing fingerprint data in: {dest}")
 
     # Open raw socket to capture packets
     sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
-    sock.bind((nic, 0))  # Bind to correct NIC
-    sock.settimeout(5)  # Set timeout to prevent infinite blocking
+    sock.bind((nic, 0))  
+    sock.settimeout(10)  # Increase timeout to 10 seconds
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
 
-    timeout = time.time() + 60  # Limit scan time to 60 seconds
+    timeout = time.time() + 120  # Increase overall scan time to 2 minutes
 
     while packet_count < max_packets and time.time() < timeout:
         try:
             packet, addr = sock.recvfrom(65565)
+            logging.info(f"[DEBUG] Raw Packet Data (First 100 Bytes): {packet[:100].hex()}")
 
-            # Extract Ethernet & IP header
             eth_protocol = struct.unpack("!H", packet[12:14])[0]
             ip_header = packet[14:34]
             ip_unpack = struct.unpack("!BBHHHBBH4s4s", ip_header)
             src_ip = ip_unpack[8]
             dest_ip = ip_unpack[9]
 
-            # Convert IP bytes to readable format
             src_ip_str = socket.inet_ntoa(src_ip)
             dest_ip_str = socket.inet_ntoa(dest_ip)
 
-            # Ignore packets that are not from or to the target host
+            # Debug: Print packet details
+            logging.info(f"Captured Packet: {src_ip_str} → {dest_ip_str} (Protocol: {eth_protocol})")
+
             if src_ip != target_ip and dest_ip != target_ip:
+                logging.info("[DEBUG] Ignored packet (Not from/to target)")
                 continue
 
-            # Display packet capture in real-time
-            logging.info(f"Captured Packet: {src_ip_str} → {dest_ip_str}")
-            logging.info(f"Raw Data (First 50 bytes): {packet[:50].hex()}")
-
-            # Determine protocol type
+            # Save packets
             proto_type = None
             if eth_protocol == 0x0806:
                 proto_type = "arp"
@@ -70,7 +67,6 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
                 elif ip_proto == 17:
                     proto_type = "udp"
 
-            # Save packets to corresponding files
             if proto_type:
                 packet_file = os.path.join(dest, f"{proto_type}_record.txt")
                 with open(packet_file, "a") as f:
@@ -79,8 +75,9 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
                 logging.info(f"Saved {proto_type.upper()} Packet ({packet_count})")
 
         except socket.timeout:
-            logging.warning("No packets received within timeout. Exiting scan.")
-            break
+            logging.warning("No packets received in 10 seconds. Retrying...")
+            continue  # Retry instead of breaking
+
         except Exception as e:
             logging.error(f"Error while capturing packets: {e}")
             break
