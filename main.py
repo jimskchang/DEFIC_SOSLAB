@@ -1,32 +1,26 @@
-import logging
-import argparse
 import os
-import threading
+import logging
 import socket
 import struct
-import src.settings as settings
 import time
-from src.os_deceiver import OsDeceiver
-
-# Logging configuration
-logging.basicConfig(
-    format='%(asctime)s [%(levelname)s]: %(message)s',
-    datefmt='%y-%m-%d %H:%M',
-    level=logging.INFO
-)
 
 def collect_fingerprint(target_host, nic, dest, max_packets=100):
-    """ Captures fingerprinting packets for the target host only. """
-    
+    """
+    Captures fingerprinting packets for the target host only.
+    """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
 
     os.makedirs(dest, exist_ok=True)
     logging.info(f"Storing fingerprint data in: {dest}")
 
-    # Open raw socket to capture packets
-    sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
-    sock.bind((nic, 0))  
-    sock.settimeout(10)  # Increase timeout to 10 seconds
+    try:
+        sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
+        sock.bind((nic, 0))
+        sock.settimeout(10)  # Increase timeout
+        logging.info(f"Listening on interface {nic} for packets...")
+    except Exception as e:
+        logging.error(f"Failed to create raw socket: {e}")
+        return
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
@@ -47,14 +41,15 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
             src_ip_str = socket.inet_ntoa(src_ip)
             dest_ip_str = socket.inet_ntoa(dest_ip)
 
-            # Debug: Print packet details
+            # Print debug details
             logging.info(f"Captured Packet: {src_ip_str} → {dest_ip_str} (Protocol: {eth_protocol})")
 
+            # Ensure packets are from/to the target host
             if src_ip != target_ip and dest_ip != target_ip:
                 logging.info("[DEBUG] Ignored packet (Not from/to target)")
                 continue
 
-            # Save packets
+            # Save packet
             proto_type = None
             if eth_protocol == 0x0806:
                 proto_type = "arp"
@@ -86,49 +81,3 @@ def collect_fingerprint(target_host, nic, dest, max_packets=100):
         logging.warning("No packets captured! Check network settings and traffic.")
     
     logging.info(f"OS Fingerprinting Completed. Captured {packet_count} packets.")
-    
-
-def execute_command(args):
-    """ Executes a given command based on user input """
-    settings.HOST = args.host
-    settings.NIC = args.nic
-
-    if args.scan == 'ts':
-        os_dest = os.path.join("os_record", "unknown")  # Store in /os_record/unknown/
-        os.makedirs(os_dest, exist_ok=True)  # Ensure the folder exists
-
-        logging.info(f"Executing OS Fingerprinting for {args.host}...")
-        collect_fingerprint(args.host, args.nic, os_dest, max_packets=100)
-
-    elif args.scan == 'od':
-        if not args.os or not args.te:
-            logging.error("Missing required arguments: --os and --te are needed for --scan od")
-            return
-
-        os_dest = os.path.join("os_record", args.os)  # Store in correct OS folder
-        os.makedirs(os_dest, exist_ok=True)
-
-        logging.info(f"Executing OS Deception on {args.host}, mimicking {args.os}...")
-        deceiver = OsDeceiver(args.host, args.os, dest=os_dest)
-        deceiver.os_deceive()
-        logging.info(f"OS Deception will run for {args.te} minutes...")
-        timer = threading.Timer(args.te * 60, deceiver.stop)
-        timer.start()
-
-    else:
-        logging.error("Invalid scan technique specified.")
-
-def main():
-    """ Main function with normal execution and optional command mode """
-    parser = argparse.ArgumentParser(description='Deceiver Command Mode')
-    parser.add_argument('--host', required=True, help='Target host IP')
-    parser.add_argument('--nic', required=True, help='NIC where we capture packets')
-    parser.add_argument('--scan', choices=['ts', 'od', 'rr', 'pd'], required=True, help='Scanning technique')
-    parser.add_argument('--os', help='OS to mimic (required for --scan od)')
-    parser.add_argument('--te', type=int, help='Timeout duration in minutes for --od')
-    args = parser.parse_args()
-
-    execute_command(args)
-
-if __name__ == '__main__':
-    main()
