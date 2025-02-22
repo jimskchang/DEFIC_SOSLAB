@@ -19,9 +19,15 @@ def execute_command(args):
     settings.NIC = args.nic
 
     if args.scan == 'ts':
+        os_dest = os.path.join("os_record", "unknown")  # Store in /os_record/unknown/ by default
+        os.makedirs(os_dest, exist_ok=True)  # Ensure the folder exists
+
         logging.info(f"Executing OS Fingerprinting for {args.host}...")
-        deceiver = OsDeceiver(args.host, "unknown")  # Store in unknown by default
-        deceiver.os_record()  # Ensure fingerprinting runs
+        logging.info(f"Storing fingerprint data in: {os_dest}")
+
+        deceiver = OsDeceiver(args.host, "unknown", dest=os_dest)  
+        deceiver.os_record()
+
         logging.info("Fingerprinting completed.")
         return  # Exit the script normally after execution
 
@@ -32,16 +38,23 @@ def execute_command(args):
         if not args.te:
             logging.error("Missing required argument: --te is needed for --scan od")
             return
+
+        os_dest = os.path.join("os_record", args.os)  # Store in correct OS folder
+        os.makedirs(os_dest, exist_ok=True)
+
         logging.info(f"Executing OS Deception on {args.host}, mimicking {args.os}...")
-        deceiver = OsDeceiver(args.host, args.os)
+        deceiver = OsDeceiver(args.host, args.os, dest=os_dest)
         deceiver.os_deceive()
         logging.info(f"OS Deception will run for {args.te} minutes...")
         timer = threading.Timer(args.te * 60, deceiver.stop)
         timer.start()
 
     elif args.scan == 'rr':
-        logging.info(f"Storing OS response fingerprint for {args.host}...")
-        deceiver = OsDeceiver(args.host, "unknown")  
+        os_dest = os.path.join("os_record", "unknown")  # Store response in /os_record/unknown/
+        os.makedirs(os_dest, exist_ok=True)
+
+        logging.info(f"Storing OS response fingerprint for {args.host} in {os_dest}...")
+        deceiver = OsDeceiver(args.host, "unknown", dest=os_dest)
         deceiver.store_rsp()
         logging.info("OS response stored.")
 
