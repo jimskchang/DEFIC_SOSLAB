@@ -1,5 +1,6 @@
 import logging
 import argparse
+import os
 import threading
 import src.settings as settings
 from src.port_deceiver import PortDeceiver
@@ -12,28 +13,16 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-def main():
-    parser = argparse.ArgumentParser(description='Deceiver Demo')
-    parser.add_argument('--host', required=True, help='Specify destination IP')
-    parser.add_argument('--port', help='Specify destination port')
-    parser.add_argument('--nic', required=True, help='NIC where we capture the packets')
-    parser.add_argument('--scan', choices=['ts', 'od', 'rr', 'pd'], required=True, help='Attacker\'s port scanning technique')
-    parser.add_argument('--status', help='Designate port status (used with --scan pd)')
-    parser.add_argument('--os', help='Designate OS we want to deceive (required for --scan od)')
-    parser.add_argument('--te', type=int, help='Timeout duration in minutes for --od and --pd (e.g., --te 6 for 6 minutes)')
-
-    args = parser.parse_args()
-
+def execute_command(args):
+    """ Executes a given command based on user input """
     settings.HOST = args.host
     settings.NIC = args.nic
 
-    logging.info(f"Starting deception tool with mode: {args.scan}")
-
     if args.scan == 'ts':
         logging.info(f"Executing OS Fingerprinting for {args.host}...")
-        deceiver = OsDeceiver(args.host, "unknown")  # No more storing in directories
+        deceiver = OsDeceiver(args.host, "unknown")  # Store in unknown by default
         deceiver.os_record()
-        logging.info(f"Fingerprinting completed.")
+        logging.info("Fingerprinting completed.")
 
     elif args.scan == 'od':
         if not args.os:
@@ -71,7 +60,21 @@ def main():
 
     else:
         logging.error("Invalid scan technique specified.")
-        return
+
+def main():
+    """ Main function with command mode loop """
+    while True:
+        parser = argparse.ArgumentParser(description='Deceiver Command Mode')
+        parser.add_argument('--host', required=True, help='Target host IP')
+        parser.add_argument('--nic', required=True, help='NIC where we capture the packets')
+        parser.add_argument('--scan', choices=['ts', 'od', 'rr', 'pd'], required=True, help='Scanning technique')
+        parser.add_argument('--status', help='Designate port status (used with --scan pd)')
+        parser.add_argument('--os', help='OS to mimic (required for --scan od)')
+        parser.add_argument('--te', type=int, help='Timeout duration in minutes for --od and --pd')
+        args = parser.parse_args(input("Enter command: ").split())
+
+        execute_command(args)
+        logging.info("Returning to command mode...\n")
 
 if __name__ == '__main__':
     main()
