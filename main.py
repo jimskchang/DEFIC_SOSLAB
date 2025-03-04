@@ -96,11 +96,13 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
                     logging.info(f"Captured UDP Packet: SrcPort={src_port}, DstPort={dst_port} (Possible Nmap UDP Scan)")
                 
             if proto_type and packet_data:
-                print(f"Captured Packet: {packet_data}")  # ✅ Print for debugging
-                with open(packet_files[proto_type], "a") as f:
-                    f.write(packet_data)
-                packet_count += 1
-                logging.info(f"Captured {proto_type.upper()} Packet ({packet_count})")
+                try:
+                    with open(packet_files[proto_type], "a") as f:
+                        f.write(packet_data)
+                    packet_count += 1
+                    logging.info(f"Captured {proto_type.upper()} Packet ({packet_count})")
+                except Exception as e:
+                    logging.error(f"Error writing to file {packet_files[proto_type]}: {e}")
 
         except socket.timeout:
             logging.warning("No packets received within timeout. Waiting for more traffic...")
