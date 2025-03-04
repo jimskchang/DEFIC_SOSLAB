@@ -9,25 +9,25 @@ import src.settings as settings
 from src.Packet import Packet
 from src.tcp import TcpConnect
 
-import json  # Add this at the top of the script
+import json
 
 def load_file(self, pkt_type: str):
     logging.basicConfig(level=logging.INFO)
     file_path = f"os_record/{self.os}/{pkt_type}_record.txt"
-    
+
     try:
         with open(file_path, 'r') as file:
             packet_data = file.read().strip()
             if not packet_data:
-                return {}  # Return empty dictionary if the file is empty
-            packet_dict = json.loads(packet_data)  # Safely parse JSON instead of eval()
+                return {}  # Return an empty dictionary if the file is empty
+            packet_dict = json.loads(packet_data)  # Safe JSON parsing
             
-        clean_packet_dict = {k: v for (k, v) in packet_dict.items() if v is not None}
+        clean_packet_dict = {k: v for k, v in packet_dict.items() if v is not None}
         return clean_packet_dict
 
     except (json.JSONDecodeError, FileNotFoundError, IOError) as e:
         logging.error(f"Error loading {file_path}: {e}")
-        return {}  # Return an empty dictionary to prevent crashes
+        return {}  # Return an empty dictionary if there's an error
 
 count = 0
 
