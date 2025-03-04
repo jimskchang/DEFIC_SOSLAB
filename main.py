@@ -28,10 +28,10 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     
     # Define packet type files
     packet_files = {
-        "arp": os.path.join(dest, "arp_record.txt"),
-        "icmp": os.path.join(dest, "icmp_record.txt"),
-        "tcp": os.path.join(dest, "tcp_record.txt"),
-        "udp": os.path.join(dest, "udp_record.txt"),
+        "arp": os.path.abspath(os.path.join(dest, "arp_record.txt")),
+        "icmp": os.path.abspath(os.path.join(dest, "icmp_record.txt")),
+        "tcp": os.path.abspath(os.path.join(dest, "tcp_record.txt")),
+        "udp": os.path.abspath(os.path.join(dest, "udp_record.txt")),
     }
     
     # Enable promiscuous mode for better packet capturing
@@ -97,10 +97,11 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
                 
             if proto_type and packet_data:
                 try:
+                    logging.info(f"Attempting to write to {packet_files[proto_type]}")
                     with open(packet_files[proto_type], "a") as f:
                         f.write(packet_data)
                     packet_count += 1
-                    logging.info(f"Captured {proto_type.upper()} Packet ({packet_count})")
+                    logging.info(f"Successfully saved {proto_type.upper()} packet ({packet_count}) to {packet_files[proto_type]}")
                 except Exception as e:
                     logging.error(f"Error writing to file {packet_files[proto_type]}: {e}")
 
@@ -140,22 +141,15 @@ def main():
             return
         collect_fingerprint(args.host, args.dest, args.nic, max_packets=100)
     elif args.od:
-        if not args.os or not args.te:
-            logging.error("Missing required arguments for --od")
-            return
         deceiver = OsDeceiver(args.host, args.os)
         deceiver.os_deceive()
         threading.Timer(args.te * 60, deceiver.stop).start()
     elif args.pd:
-        if not args.status or not args.te:
-            logging.error("Missing required arguments for --pd")
-            return
         deceiver = PortDeceiver(args.host)
         deceiver.deceive_ps_hs(args.status)
         threading.Timer(args.te * 60, deceiver.stop).start()
     else:
         logging.error("Invalid command. Specify --scan ts, --od, or --pd.")
-        return
 
 if __name__ == '__main__':
     main()
