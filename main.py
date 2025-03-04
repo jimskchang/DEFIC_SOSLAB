@@ -98,7 +98,7 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
             if proto_type and packet_data:
                 print(f"Captured Packet: {packet_data}")  # ✅ Print for debugging
                 with open(packet_files[proto_type], "a") as f:
-                f.write(packet_data)
+                    f.write(packet_data)
                 packet_count += 1
                 logging.info(f"Captured {proto_type.upper()} Packet ({packet_count})")
 
