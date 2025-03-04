@@ -22,9 +22,8 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
     """
     logging.info(f"Starting OS Fingerprinting on {target_host} (Max: {max_packets} packets)")
 
-    # Ensure necessary directories exist
+    # Ensure destination directory exists
     os.makedirs(dest, exist_ok=True)
-    os.makedirs(os.path.join(dest, 'unknown'), exist_ok=True)
 
     # Enable promiscuous mode for better packet capturing
     os.system(f"sudo ip link set {nic} promisc on")
@@ -41,19 +40,13 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
 
     target_ip = socket.inet_aton(target_host)
     packet_count = 0
-    os_dest = os.path.join(dest, "unknown")
-    logging.info(f"Storing fingerprint data in: {os_dest}")
-
-    # Define packet type files
-    packet_files = {
-        "arp": os.path.join(os_dest, "arp_record.txt"),
-        "icmp": os.path.join(os_dest, "icmp_record.txt"),
-        "tcp": os.path.join(os_dest, "tcp_record.txt"),
-        "udp": os.path.join(os_dest, "udp_record.txt"),
-    }
+    fingerprint_file = os.path.join(dest, "fingerprint.txt")  # Store all fingerprints in a single file
+    logging.info(f"Storing fingerprint data in: {fingerprint_file}")
 
     # **Loop to capture packets for 3 minutes**
     timeout = time.time() + 180  # 180 seconds (3 minutes)
+    captured_data = []
+
     while packet_count < max_packets and time.time() < timeout:
         try:
             packet, addr = sock.recvfrom(65565)
@@ -75,20 +68,19 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
                     proto_type = "icmp"
                     icmp_header = packet[34:42]  # Extract ICMP header
                     icmp_type, icmp_code, icmp_checksum = struct.unpack("!BBH", icmp_header[:4])
-
+                    captured_data.append(f"ICMP Packet: Type={icmp_type}, Code={icmp_code}, Raw={packet.hex()[:50]}\n")
                     logging.info(f"Captured ICMP Packet: Type={icmp_type}, Code={icmp_code}")
 
                 elif ip_proto == 6:  # TCP
                     proto_type = "tcp"
+                    captured_data.append(f"TCP Packet: Raw={packet.hex()[:50]}\n")
+
                 elif ip_proto == 17:  # UDP
                     proto_type = "udp"
+                    captured_data.append(f"UDP Packet: Raw={packet.hex()[:50]}\n")
 
-            # **Write Captured Packets to Files**
-            if proto_type:
-                with open(packet_files[proto_type], "a") as f:
-                    f.write(str(packet) + "\n")
-                packet_count += 1
-                logging.info(f"Captured {proto_type.upper()} Packet ({packet_count})")
+            packet_count += 1
+            logging.info(f"Captured {proto_type.upper()} Packet ({packet_count})")
 
         except socket.timeout:
             logging.warning("No packets received within timeout. Waiting for more traffic...")
@@ -96,6 +88,14 @@ def collect_fingerprint(target_host, dest, nic, max_packets=100):
         except Exception as e:
             logging.error(f"Error while receiving packets: {e}")
             break
+
+    # Write all captured data to a single fingerprint file
+    if captured_data:
+        with open(fingerprint_file, "a") as f:
+            f.writelines(captured_data)
+        logging.info(f"OS Fingerprint stored in {fingerprint_file}")
+    else:
+        logging.warning("No packets captured! Check network interface settings and traffic.")
 
     if packet_count == 0:
         logging.warning("No packets captured! Check network interface settings and traffic.")
