@@ -131,7 +131,10 @@ def main():
 
     logging.info("Starting deception tool...")
 
-    if args.scan == 'ts' and args.dest:
+    if args.scan == 'ts':
+        if not args.dest:
+            logging.error("Missing required argument: --dest for --scan ts")
+            return
         collect_fingerprint(args.host, args.dest, args.nic, max_packets=100)
     elif args.od:
         if not args.os or not args.te:
