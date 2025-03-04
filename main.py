@@ -5,6 +5,7 @@ import time
 import socket
 import struct
 import threading
+import sys
 import src.settings as settings
 from src.port_deceiver import PortDeceiver
 from src.os_deceiver import OsDeceiver
@@ -113,40 +114,39 @@ def main():
     parser = argparse.ArgumentParser(description="Camouflage Cloak - OS Deception & Fingerprinting System")
     parser.add_argument("--host", required=True, help="Target host IP to deceive or fingerprint")
     parser.add_argument("--nic", required=True, help="Network interface to capture packets")
-    parser.add_argument("--scan", choices=["ts", "od", "rr", "pd"], required=True, help="Scanning technique")
-    parser.add_argument("--dest", required=True, help="Directory to store OS fingerprints")
-    parser.add_argument("--os", help="OS to mimic (required for --scan od)")
-    parser.add_argument("--te", type=int, help="Timeout duration in minutes for --od and --pd")
-    parser.add_argument("--status", help="Port status (used with --scan pd)")
+    parser.add_argument("--dest", help="Directory to store OS fingerprints (Required for scans)")
+    parser.add_argument("--od", action="store_true", help="Enable OS Deception mode")
+    parser.add_argument("--os", help="OS to mimic (Required for --od)")
+    parser.add_argument("--te", type=int, help="Timeout duration in minutes (Required for --od and --pd)")
+    parser.add_argument("--pd", action="store_true", help="Enable Port Deception mode")
+    parser.add_argument("--status", help="Port status (Required for --pd)")
     args = parser.parse_args()
 
     settings.HOST = args.host
     settings.NIC = args.nic
 
-    os.makedirs(args.dest, exist_ok=True)
+    os.makedirs(args.dest, exist_ok=True) if args.dest else None
 
-    logging.info(f"Starting deception tool with mode: {args.scan}")
+    logging.info("Starting deception tool...")
 
-    if args.scan == 'ts':
-        collect_fingerprint(args.host, args.dest, args.nic, max_packets=100)
-    elif args.scan == 'od':
+    if args.od:
         if not args.os or not args.te:
-            logging.error("Missing required arguments for --scan od")
+            logging.error("Missing required arguments for --od")
             return
         deceiver = OsDeceiver(args.host, args.os)
         deceiver.os_deceive()
         threading.Timer(args.te * 60, deceiver.stop).start()
-    elif args.scan == 'rr':
-        OsDeceiver(args.host, "unknown").store_rsp()
-    elif args.scan == 'pd':
+    elif args.pd:
         if not args.status or not args.te:
-            logging.error("Missing required arguments for --scan pd")
+            logging.error("Missing required arguments for --pd")
             return
         deceiver = PortDeceiver(args.host)
         deceiver.deceive_ps_hs(args.status)
         threading.Timer(args.te * 60, deceiver.stop).start()
+    elif args.dest:
+        collect_fingerprint(args.host, args.dest, args.nic, max_packets=100)
     else:
-        logging.error("Invalid scan technique specified.")
+        logging.error("Invalid command. Specify --od, --pd, or --dest for fingerprinting.")
         return
 
 if __name__ == '__main__':
