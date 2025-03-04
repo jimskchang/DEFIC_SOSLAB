@@ -114,7 +114,8 @@ def main():
     parser = argparse.ArgumentParser(description="Camouflage Cloak - OS Deception & Fingerprinting System")
     parser.add_argument("--host", required=True, help="Target host IP to deceive or fingerprint")
     parser.add_argument("--nic", required=True, help="Network interface to capture packets")
-    parser.add_argument("--dest", help="Directory to store OS fingerprints (Required for scans)")
+    parser.add_argument("--scan", choices=["ts"], help="Scanning technique (Required for fingerprint collection)")
+    parser.add_argument("--dest", help="Directory to store OS fingerprints (Required for --scan ts)")
     parser.add_argument("--od", action="store_true", help="Enable OS Deception mode")
     parser.add_argument("--os", help="OS to mimic (Required for --od)")
     parser.add_argument("--te", type=int, help="Timeout duration in minutes (Required for --od and --pd)")
@@ -129,7 +130,9 @@ def main():
 
     logging.info("Starting deception tool...")
 
-    if args.od:
+    if args.scan == 'ts' and args.dest:
+        collect_fingerprint(args.host, args.dest, args.nic, max_packets=100)
+    elif args.od:
         if not args.os or not args.te:
             logging.error("Missing required arguments for --od")
             return
@@ -143,10 +146,8 @@ def main():
         deceiver = PortDeceiver(args.host)
         deceiver.deceive_ps_hs(args.status)
         threading.Timer(args.te * 60, deceiver.stop).start()
-    elif args.dest:
-        collect_fingerprint(args.host, args.dest, args.nic, max_packets=100)
     else:
-        logging.error("Invalid command. Specify --od, --pd, or --dest for fingerprinting.")
+        logging.error("Invalid command. Specify --scan ts, --od, or --pd.")
         return
 
 if __name__ == '__main__':
