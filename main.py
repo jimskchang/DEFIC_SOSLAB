@@ -126,7 +126,8 @@ def main():
     settings.HOST = args.host
     settings.NIC = args.nic
 
-    os.makedirs(args.dest, exist_ok=True) if args.dest else None
+    if args.dest:
+        os.makedirs(args.dest, exist_ok=True)
 
     logging.info("Starting deception tool...")
 
